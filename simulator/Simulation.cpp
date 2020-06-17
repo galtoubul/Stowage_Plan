@@ -255,6 +255,7 @@ int Simulator::checkMoveInstruction(int x1, int y1, int floor1, int x2, int y2, 
 
 // -------------------------- errors --------------------------- //
 
+//void Simulator::makeTravelError(int travelErrors, const string& output, vector<vector<int>>& outputMat, int algInd, int travelInd){
 void Simulator::makeTravelError(int travelErrors, const string& output, vector<vector<int>>& outputMat, int algInd, int travelInd){
     std::error_code ec;
     fs::create_directory(output + SEPARATOR + "errors", ec);
@@ -267,23 +268,15 @@ void Simulator::makeTravelError(int travelErrors, const string& output, vector<v
     errorsFile.close();
     clearData(shipPlan, shipRoute);
 
-    outputMat[algInd][travelInd] = -1;
-    outputMat[algInd][outputMat[algInd].size() - 1]++;
+    outputMat[algInd][travelInd] = NON_VALID_TRAVEL;
 }
 
-void createSimulationResults(ofstream& simulationResults, vector<tuple<string,vector<int>,int,int>> outputVector){
-    sort(outputVector.begin(), outputVector.end(), compareAlgoTuples);
-    if (simulationResults.is_open()){
-        for (auto& alg : outputVector){
-            simulationResults << get<0>(alg) + ","; // algorithm name
-            for (int algActionNum : get<1>(alg)){ // algorithm's num of operations
-                simulationResults << to_string(algActionNum) + ",";
-            }
-            simulationResults << to_string(get<2>(alg)) + "," // algorithm's sum of operations
-                              << to_string(get<3>(alg)) + "\n"; // // algorithm's num of errors
-        }
+bool Simulator::cantRunTravel(int travelErrors, const string& output, vector<vector<int>>& outputMat, int algInd, int travelInd){
+    if ((CANNOT_RUN_TRAVEL & travelErrors) != 0) {
+        makeTravelError(travelErrors, output, outputMat, algInd, travelInd);
+        return true;
     }
-    simulationResults.close();
+    return false;
 }
 
 void Simulator::writeErrors(int errorsOfAlgorithm, Travel& travel, vector<vector<int>>& outputMat, int algInd, int travelInd, const string& algorithmErrorString){
@@ -302,22 +295,17 @@ void Simulator::writeErrors(int errorsOfAlgorithm, Travel& travel, vector<vector
                     errorsFile << Errors::errorsMap[i] << "\n";
 
             // the algorithm made errors -> updating simulation.results' Mat
-            if ((errorsOfAlgorithm & (1 << 19)) > 0) {
-                errorsFile << algorithmErrorString;
-                outputMat[algInd][travelInd] = -1;
-                outputMat[algInd][outputMat[algInd].size() - 1]++;
-            }
+            if ((errorsOfAlgorithm & (1 << 19)) > 0)
+                makeAlgorithmError(errorsFile, algorithmErrorString, outputMat, algInd, travelInd);
             errorsFile.close();
         }
     }
 }
 
-bool Simulator::cantRunTravel(int travelErrors, const string& output, vector<vector<int>>& outputMat, int algInd, int travelInd){
-    if ((CANNOT_RUN_TRAVEL & travelErrors) != 0) {
-        makeTravelError(travelErrors, output, outputMat, algInd, travelInd);
-        return true;
-    }
-    return false;
+void Simulator::makeAlgorithmError(ofstream& errorsFile, const string& algorithmErrorString, vector<vector<int>>& outputMat, int algInd, int travelInd){
+    errorsFile << algorithmErrorString;
+    outputMat[algInd][travelInd] = -1;
+    outputMat[algInd][outputMat[algInd].size() - 1]++;
 }
 
 // -------------------------- run algorithm - travel pair --------------------------- //
@@ -348,9 +336,14 @@ int Simulator::startTravel (AbstractAlgorithm* algorithm, const string& algName,
         bool isFinalPort = currPortIndex == (int)shipRoute.getPortsList().size();
         readContainersAwaitingAtPort(inputFileName, isFinalPort, containersAwaitingAtPort, shipPlan, shipRoute, currPortIndex);
 
+        cout << "before getInstructionsForCargo" << endl;
+        cout << "inputFileName = " << inputFileName << "\noutputFileName = " << outputFileName << endl;
+        cout << "travel.getName() = " << travel.getName() << "\ntravel.getName() = " << travel.getShipRoutePath() <<
+        "\ntravel.getShipPlanPath() = " << travel.getShipPlanPath() << "\ntravel.getIndex() = " << travel.getIndex() << endl;
         // algorithm is reading the input and making actions on his ship plan
         //Errors here will be written in the same func of the next step
         errors |= algorithm->getInstructionsForCargo(inputFileName, outputFileName);
+        cout << "after getInstructionsForCargo\n" << endl;
 
         int status = checkAndCountAlgorithmActions(containersAwaitingAtPort, outputFileName, port.getPortId(), algorithmErrorString, currPortIndex, algActionsCounter);
 
@@ -362,4 +355,19 @@ int Simulator::startTravel (AbstractAlgorithm* algorithm, const string& algName,
         }
     }
     return errors;
+}
+
+void createSimulationResults(ofstream& simulationResults, vector<tuple<string,vector<int>,int,int>> outputVector){
+    if (simulationResults.is_open() && !outputVector.empty()){
+        sort(outputVector.begin(), outputVector.end(), compareAlgoTuples);
+        for (auto& alg : outputVector){
+            simulationResults << get<0>(alg) + ","; // algorithm name
+            for (int algActionNum : get<1>(alg)){ // algorithm's num of operations
+                simulationResults << to_string(algActionNum) + ",";
+            }
+            simulationResults << to_string(get<2>(alg)) + "," // algorithm's sum of operations
+                              << to_string(get<3>(alg)) + "\n"; // // algorithm's num of errors
+        }
+    }
+    simulationResults.close();
 }

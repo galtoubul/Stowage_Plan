@@ -13,7 +13,6 @@
 #include <vector>
 #include "../Interfaces/AbstractAlgorithm.h"
 #include "../Common/Parser.h"
-#include "../Interfaces/WeightBalanceCalculator.h"
 using std::vector;
 using std::tuple;
 using std::string;

@@ -6,6 +6,7 @@ using std::endl;
 using std::get;
 #define SEPARATOR string(1, fs::path::preferred_separator)
 #define CANNOT_RUN_TRAVEL ((1 << 3) | (1 <<4) | (1 << 7) | (1 << 8))
+#define SUM_AND_NUM_ERRORS 2
 
 std::optional<int> TasksProducer::next_task_index_simple() {
     if(task_counter < numTasks) {
@@ -26,6 +27,8 @@ std::optional<std::function<void(void)>> TasksProducer::getTask(vector<vector<in
 
         return [task_index, this, &outputMat] {
             std::lock_guard g{m};
+
+            // initializations
             auto& algorithm = get<0>(travelAlgVec[*task_index]);
             unique_ptr<AbstractAlgorithm> alg = algorithm.second();
             Travel& travel = get<1>(travelAlgVec[*task_index]);
@@ -33,22 +36,24 @@ std::optional<std::function<void(void)>> TasksProducer::getTask(vector<vector<in
             Simulator simulator{};
             simulator.setErrorsFileName(travel.getOutputPath() + SEPARATOR + "errors" + SEPARATOR +
                                         algorithm.first + "_" + to_string(travel.getIndex()) + ".errors");
+
+            // get input for simulator
             int travelErrors = simulator.getInput(travel.getShipPlanPath().string(), travel.getShipRoutePath().string());
             int algInd = get<2>(travelAlgVec[*task_index]).first;
             int travelInd = get<2>(travelAlgVec[*task_index]).second;
-
             if (simulator.cantRunTravel(travelErrors, travel.getOutputPath(), outputMat, algInd, travelInd)) return;
 
             WeightBalanceCalculator _calculator;
             alg->setWeightBalanceCalculator(_calculator);
             simulator.setWeightBalanceCalculator(_calculator);
 
-            // errorsOfAlgorithm != 0 iff we have errors in the given input / the algorithm made errors
-            int errorsOfAlgorithm = 0;
+            // get input for algorithm
+            int errorsOfAlgorithm = 0;  // errorsOfAlgorithm != 0 iff we have errors in the given input / the algorithm made errors
             errorsOfAlgorithm |= alg->readShipPlan(travel.getShipPlanPath().string());
             errorsOfAlgorithm |= alg->readShipRoute(travel.getShipRoutePath().string());
             if (simulator.cantRunTravel(travelErrors, travel.getOutputPath(), outputMat, algInd, travelInd)) return;
 
+            // run algorithm - travel pair
             string algorithmErrorString;
             int algActionsCounter = 0;
             errorsOfAlgorithm |= simulator.startTravel(alg.get(), algorithm.first, travel, algorithmErrorString, travel.getOutputPath(), algActionsCounter);
@@ -57,7 +62,7 @@ std::optional<std::function<void(void)>> TasksProducer::getTask(vector<vector<in
 
             // updating simulation.results' Mat
             outputMat[algInd][travelInd] = algActionsCounter;
-            outputMat[algInd][outputMat[algInd].size() - 2] += algActionsCounter;
+            outputMat[algInd][outputMat[algInd].size() - SUM_AND_NUM_ERRORS] += algActionsCounter;
 
             std::this_thread::yield();
         };

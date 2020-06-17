@@ -18,7 +18,7 @@ add_executable(ex3_308394642_205611544
         Common/ShipPlan.h                       Common/ShipPlan.cpp
         Common/ShipRoute.h                      Common/ShipRoute.cpp
         Common/Travel.h                         Common/Travel.cpp
-        Common/WeightBalanceCalculator.cpp
+        simulator/WeightBalanceCalculator.cpp
         Common/Errors.h                         Common/Errors.cpp
         Interfaces/AbstractAlgorithm.h
         Interfaces/AlgorithmRegistration.h

@@ -21,6 +21,7 @@
 using std::vector;
 using std::tuple;
 using std::unique_ptr;
+#define NON_VALID_TRAVEL -100
 
 class Simulator{
     ShipPlan shipPlan;
@@ -58,8 +59,10 @@ public:
 
     // errors:
     void makeTravelError(int travelErrors, const string& output, vector<vector<int>>& outputMat, int algInd, int travelInd);
-    void writeErrors(int errorsOfAlgorithm, Travel& travel, vector<vector<int>>& outputMat, int algInd, int travelInd, const string& algorithmErrorString);
+//    void makeTravelError(int travelErrors, const string& output);
+    void makeAlgorithmError(ofstream& errorsFile, const string& algorithmErrorString, vector<vector<int>>& outputMat, int algInd, int travelInd);
     bool cantRunTravel(int travelErrors, const string& output, vector<vector<int>>& outputMat, int algInd, int travelInd);
+    void writeErrors(int errorsOfAlgorithm, Travel& travel, vector<vector<int>>& outputMat, int algInd, int travelInd, const string& algorithmErrorString);
 
     // returns the number of free spots on the ship
     int freeSlotsInShip ();

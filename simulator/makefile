@@ -4,7 +4,7 @@ COMMON = ../Common
 INTERFACES = ../Interfaces
 ALGORITHM = ../algorithm
 OBJS = main.o Registrar.o Simulation.o $(COMMON)/Parser.o $(COMMON)/ShipPlan.o $(COMMON)/Container.o TasksProducer.o $(COMMON)/Errors.o \
-$(COMMON)/ISO6346.o $(COMMON)/ShipRoute.o $(COMMON)/Port.o $(COMMON)/Travel.o $(COMMON)/WeightBalanceCalculator.o AlgorithmRegistration.o 
+$(COMMON)/ISO6346.o $(COMMON)/ShipRoute.o $(COMMON)/Port.o $(COMMON)/Travel.o WeightBalanceCalculator.o AlgorithmRegistration.o
 
 EXEC = simulator
 CPP_COMP_FLAG = -std=c++2a -Wall -Wextra -Werror -pedantic-errors -DNDEBUG -fPIC
@@ -35,7 +35,7 @@ $(COMMON)/Port.o: $(COMMON)/Port.h $(COMMON)/Port.cpp
 	$(COMP) $(CPP_COMP_FLAG) -o $@ -c $*.cpp
 $(COMMON)/Travel.o: $(COMMON)/Travel.h $(COMMON)/Travel.cpp
 	$(COMP) $(CPP_COMP_FLAG) -o $@ -c $*.cpp
-$(COMMON)/WeightBalanceCalculator.o: $(INTERFACES)/WeightBalanceCalculator.h $(COMMON)/WeightBalanceCalculator.cpp
+WeightBalanceCalculator.o: $(INTERFACES)/WeightBalanceCalculator.h WeightBalanceCalculator.cpp
 	$(COMP) $(CPP_COMP_FLAG) -o $@ -c $*.cpp
 $(COMMON)/Errors.o: $(COMMON)/Errors.cpp $(COMMON)/Errors.h
 	$(COMP) $(CPP_COMP_FLAG) -o $@ -c $*.cpp
