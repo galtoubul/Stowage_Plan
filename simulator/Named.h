@@ -7,7 +7,11 @@ public:
     operator T() const {return value;}
 };
 
-class NumTasks: public Named<size_t> {
+class NumTravels: public Named<size_t> {
+    using Named<size_t>::Named;
+};
+
+class NumAlgorithms: public Named<size_t> {
     using Named<size_t>::Named;
 };
 

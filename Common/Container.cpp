@@ -2,6 +2,8 @@
 using std::tuple;
 using std::get;
 
+// --------------------------- getters --------------------------- //
+
 int Container::getWeight (){
     return weight;
 }
@@ -25,6 +27,8 @@ bool Container::isRejected (){
 tuple<int,int,int> Container::getLocation(){
     return loc;
 }
+
+// --------------------------- setters --------------------------- //
 
 void  Container::setLocation (int x, int y, int floor) {
     loc = std::make_tuple(x, y, floor);

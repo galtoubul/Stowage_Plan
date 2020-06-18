@@ -36,17 +36,16 @@ public:
     explicit Container (const Container* other) :
             weight(other->weight), destination(other->destination), id(other->id), futile(other->futile), loc(other->loc) {}
 
+    // --------------------------- getters --------------------------- //
+
     int getWeight ();
-
     string getDestination () const;
-
     string getId () const;
-
     bool isFutile ();
-
     bool isRejected ();
-
     tuple<int,int,int> getLocation();
+
+    // --------------------------- setters --------------------------- //
 
     void setLocation(int x, int y, int floor);
 

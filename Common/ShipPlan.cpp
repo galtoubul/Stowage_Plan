@@ -1,5 +1,47 @@
 #include "ShipPlan.h"
 
+ShipPlan::ShipPlan(const ShipPlan& other){
+    dimX = other.dimX;
+    dimY = other.dimY;
+    floorsNum = other.floorsNum;
+    init(dimX, dimY, floorsNum);
+
+    for (int row = 0; row < dimX; ++row) {
+        for (int col = 0; col < dimY; ++col){
+            if(!other.containers[row][col].empty()) {
+                for (int floor = 0; floor < (int)containers[row][col].size(); ++floor) {
+                    if(other.containers[row][col][floor] != nullptr && other.containers[row][col][floor]->isFutile()){
+                        addFutileContainer(row, col, floor);
+                    }
+                }
+            }
+        }
+    }
+}
+
+ShipPlan& ShipPlan::operator=(const ShipPlan& other){
+    if(&other != this){
+        dimX = other.dimX;
+        dimY = other.dimY;
+        floorsNum = other.floorsNum;
+        init(dimX, dimY, floorsNum);
+
+        for (int row = 0; row < dimX; ++row) {
+            for (int col = 0; col < dimY; ++col){
+                if(!other.containers[row][col].empty()) {
+                    for (int floor = 0; floor < (int)containers[row][col].size(); ++floor) {
+                        if(other.containers[row][col][floor] != nullptr && other.containers[row][col][floor]->isFutile()){
+                            addFutileContainer(row, col, floor);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return *this;
+}
+
 void ShipPlan::init(int _dimX, int _dimY, int _floorsNum){
     dimX = _dimX;
     dimY = _dimY;

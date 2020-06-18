@@ -49,6 +49,13 @@ bool compareAlgoTuples(tuple<string,vector<int>,int,int> x, tuple<string,vector<
 
 // -------------------------- getters --------------------------- //
 
+int Simulator::getInput(const string& shipPlanFileName, const string& shipRouteFileName){
+    int errors = 0;
+    errors |= Parser::readShipPlan(shipPlan, shipPlanFileName);
+    errors |= Parser::readShipRoute(shipRoute, shipRouteFileName);
+    return errors;
+}
+
 fs::path getPath(fs::directory_entry entry, const string& lookFor){
     std::error_code ec;
     for (const auto& file : fs::directory_iterator(entry, ec)) {
@@ -68,6 +75,14 @@ ShipRoute& Simulator::getShipRoute(){
 }
 
 // -------------------------- setters --------------------------- //
+
+void Simulator::setShipPlan(const ShipPlan& _shipPlan){
+    shipPlan = _shipPlan;
+}
+
+void Simulator::setShipRoute(const ShipRoute& _shipRoute){
+    shipRoute = _shipRoute;
+}
 
 void Simulator::setWeightBalanceCalculator(WeightBalanceCalculator& _calculator){
     this->calculator = _calculator;
@@ -89,13 +104,6 @@ vector<Travel>& initTravelsVec(vector<Travel>& travelsVec, const string& travels
         }
     }
     return travelsVec;
-}
-
-int Simulator::getInput(const string& shipPlanFileName, const string& shipRouteFileName){
-    int errors = 0;
-    errors |= Parser::readShipPlan(shipPlan, shipPlanFileName);
-    errors |= Parser::readShipRoute(shipRoute, shipRouteFileName);
-    return errors;
 }
 
 // -------------------------- validations --------------------------- //
@@ -336,14 +344,9 @@ int Simulator::startTravel (AbstractAlgorithm* algorithm, const string& algName,
         bool isFinalPort = currPortIndex == (int)shipRoute.getPortsList().size();
         readContainersAwaitingAtPort(inputFileName, isFinalPort, containersAwaitingAtPort, shipPlan, shipRoute, currPortIndex);
 
-        cout << "before getInstructionsForCargo" << endl;
-        cout << "inputFileName = " << inputFileName << "\noutputFileName = " << outputFileName << endl;
-        cout << "travel.getName() = " << travel.getName() << "\ntravel.getName() = " << travel.getShipRoutePath() <<
-        "\ntravel.getShipPlanPath() = " << travel.getShipPlanPath() << "\ntravel.getIndex() = " << travel.getIndex() << endl;
         // algorithm is reading the input and making actions on his ship plan
         //Errors here will be written in the same func of the next step
         errors |= algorithm->getInstructionsForCargo(inputFileName, outputFileName);
-        cout << "after getInstructionsForCargo\n" << endl;
 
         int status = checkAndCountAlgorithmActions(containersAwaitingAtPort, outputFileName, port.getPortId(), algorithmErrorString, currPortIndex, algActionsCounter);
 

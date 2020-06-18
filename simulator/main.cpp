@@ -144,13 +144,17 @@ void initTravelAlgVec(vector<tuple<pair<string,function<unique_ptr<AbstractAlgor
 // deleting columns of non legal travels
 void updateOutputMat(vector<vector<int>>& outputMat){
     if(outputMat.empty()) return;
+
     for (int col = 0; col < (int) outputMat[0].size(); ++col) {
         for (int row = 0; row < (int) outputMat.size(); ++row) {
             if(outputMat[row][col] == NON_VALID_TRAVEL){
                 unsigned columnToDelete = col;
-                for (int i = 0; i < (int) outputMat.size(); ++i)
-                    if (outputMat[i].size() > columnToDelete)
+                for (int i = 0; i < (int) outputMat.size(); ++i){
+                    if (outputMat[i].size() > columnToDelete){
                         outputMat[i].erase(outputMat[i].begin() + columnToDelete);
+                    }
+                }
+                col--;
             }
         }
     }
@@ -170,6 +174,7 @@ void updateOutputVector(vector<vector<int>>& outputMat, vector<tuple<string,vect
 }
 
 void runOnlyMain(vector<tuple<pair<string,function<unique_ptr<AbstractAlgorithm>()>>, Travel, pair<int,int>>> travelAlgVec, vector<vector<int>> outputMat){
+    std::unordered_map<int,tuple<int,ShipPlan,ShipRoute>> shipPlanAndRouteMap;
     for(int task_index = 0; task_index < (int) travelAlgVec.size(); task_index++){
         auto& algorithm = get<0>(travelAlgVec[task_index]);
         auto& travel = get<1>(travelAlgVec[task_index]);
@@ -177,22 +182,38 @@ void runOnlyMain(vector<tuple<pair<string,function<unique_ptr<AbstractAlgorithm>
         Simulator simulator{};
         simulator.setErrorsFileName(travel.getOutputPath() + SEPARATOR + "errors" + SEPARATOR +
                                     algorithm.first + "_" + to_string(travel.getIndex()) + ".errors");
-        int travelErrors = simulator.getInput(travel.getShipPlanPath().string(), travel.getShipRoutePath().string());
+
+        // -------------------------- get input for simulator -------------------------- //
 
         int algInd = get<2>(travelAlgVec[task_index]).first;
         int travelInd = get<2>(travelAlgVec[task_index]).second;
+        int travelErrors = 0;
 
+        // didn't read data for this travel -> read shipPlan & shipRoute
+        if(shipPlanAndRouteMap.find(travelInd) == shipPlanAndRouteMap.end()){
+            travelErrors |= Parser::readShipPlan(get<1>(shipPlanAndRouteMap[travelInd]), travel.getShipPlanPath().string());
+            travelErrors |= Parser::readShipRoute(get<2>(shipPlanAndRouteMap[travelInd]), travel.getShipRoutePath().string());
+            get<0>(shipPlanAndRouteMap[travelInd]) = travelErrors;
+        }
+
+        travelErrors = get<0>(shipPlanAndRouteMap[travelInd]);
         if (simulator.cantRunTravel(travelErrors, travel.getOutputPath(), outputMat, algInd, travelInd)) return;
+
+        simulator.setShipPlan(get<1>(shipPlanAndRouteMap[travelInd]));
+        simulator.setShipRoute(get<2>(shipPlanAndRouteMap[travelInd]));
 
         WeightBalanceCalculator _calculator;
         alg->setWeightBalanceCalculator(_calculator);
         simulator.setWeightBalanceCalculator(_calculator);
 
-        // errorsOfAlgorithm != 0 iff we have errors in the given input / the algorithm made errors
-        int errorsOfAlgorithm = 0;
+        // -------------------------- get input for algorithm -------------------------- //
+
+        int errorsOfAlgorithm = 0;   // errorsOfAlgorithm != 0 iff we have errors in the given input / the algorithm made errors
         errorsOfAlgorithm |= alg->readShipPlan(travel.getShipPlanPath().string());
         errorsOfAlgorithm |= alg->readShipRoute(travel.getShipRoutePath().string());
         if (simulator.cantRunTravel(travelErrors, travel.getOutputPath(), outputMat, algInd, travelInd)) return;
+
+        // -------------------------- run algorithm - travel pair -------------------------- //
 
         string algorithmErrorString;
         int algActionsCounter = 0;
@@ -206,9 +227,8 @@ void runOnlyMain(vector<tuple<pair<string,function<unique_ptr<AbstractAlgorithm>
     }
 }
 
-// --------------------- main --------------------- //
-
 int main(int argc, char** argv) {
+
     // ----------------------- initializations ----------------------- //
 
     string travelPath, algorithmPath, output;
@@ -238,9 +258,9 @@ int main(int argc, char** argv) {
     // ----------------------- execution ----------------------- //
 
     if(numThreads > 1){
-        size_t numTasks = travelsVec.size() * algorithmMap.size();
-        ThreadPool threadPool {TasksProducer{NumTasks{numTasks}, travelAlgVec},
-                               NumThreads{numThreads}, outputMat };
+        ThreadPool threadPool {
+                TasksProducer{NumTravels{travelsVec.size()},NumAlgorithms{algorithmMap.size()}, travelAlgVec },
+                NumThreads{numThreads}, outputMat };
         threadPool.start();
         threadPool.wait_till_finish();
     } else runOnlyMain(travelAlgVec, outputMat);

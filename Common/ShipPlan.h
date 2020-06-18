@@ -31,7 +31,10 @@ class ShipPlan{
 public:
     explicit ShipPlan() : dimX(NOT_ON_SHIP), dimY(NOT_ON_SHIP), floorsNum(NOT_ON_SHIP) {}
     void init(int _dimX, int _dimY, int _floorsNum);
-    ShipPlan(const ShipPlan& other) = delete;
+
+    //ShipPlan(const ShipPlan& other) = delete;
+    ShipPlan(const ShipPlan& other);
+    ShipPlan& operator=(const ShipPlan&);
 
     int getFloorsNum() const;
     int getPivotXDimension() const;

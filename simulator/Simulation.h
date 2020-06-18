@@ -34,6 +34,8 @@ public:
 
     // ------------------- setters ----------------------- //
 
+    void setShipPlan(const ShipPlan& _shipPlan);
+    void setShipRoute(const ShipRoute& _shipRoute);
     void setWeightBalanceCalculator(WeightBalanceCalculator& _calculator);
     void setErrorsFileName(const string& _errorsFileName){ errorsFileName = _errorsFileName; }
 
@@ -59,7 +61,6 @@ public:
 
     // errors:
     void makeTravelError(int travelErrors, const string& output, vector<vector<int>>& outputMat, int algInd, int travelInd);
-//    void makeTravelError(int travelErrors, const string& output);
     void makeAlgorithmError(ofstream& errorsFile, const string& algorithmErrorString, vector<vector<int>>& outputMat, int algInd, int travelInd);
     bool cantRunTravel(int travelErrors, const string& output, vector<vector<int>>& outputMat, int algInd, int travelInd);
     void writeErrors(int errorsOfAlgorithm, Travel& travel, vector<vector<int>>& outputMat, int algInd, int travelInd, const string& algorithmErrorString);
