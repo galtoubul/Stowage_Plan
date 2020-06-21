@@ -14,9 +14,9 @@ REGISTER_ALGORITHM(_308394642_a)
 
 std::tuple<int,int,int> _308394642_a::findEmptySpot(int x, int y){
     for (int i = shipPlan.getPivotXDimension() - 1; i >= 0; i--) {
-        for (int j = 0; j < shipPlan.getPivotYDimension(); j++) {
+        for (int j = shipPlan.getPivotYDimension() - 1; j >= 0; j--) {
             for (int k = 0; k < shipPlan.getFloorsNum(); k++) {
-                if (i != x && j != y && shipPlan.getContainers()[i][j][k] == nullptr)
+                if ((i != x || j != y) && shipPlan.getContainers()[i][j][k] == nullptr)
                     return {i, j, k};
             }
         }

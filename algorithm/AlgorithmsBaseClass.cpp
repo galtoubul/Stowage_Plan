@@ -28,37 +28,42 @@ int AlgorithmsBaseClass::getInstructionsForCargo(const std::string& input_full_p
     errors |= readContainersAwaitingAtPort(input_full_path_and_file_name, isFinalPort, containersAwaitingAtPort,
                                            shipPlan, shipRoute, currPortIndex);
 
-    errors |= getLoadingInstructions(instructions, containersAwaitingAtPort, currPortIndex);
+    getLoadingInstructions(instructions, containersAwaitingAtPort, currPortIndex);
 
     writeInstructionsToFile(instructions, output_full_path_and_file_name);
     return errors;
 }
 
-int AlgorithmsBaseClass::getLoadingInstructions(vector<INSTRUCTION>& instructions, vector<Container>& containersAwaitingAtPort
+void AlgorithmsBaseClass::getLoadingInstructions(vector<INSTRUCTION>& instructions, vector<Container>& containersAwaitingAtPort
         , int currPortIndex){
+
+    // reject containers with NOT_IN_ROUTE destination
     for (auto& container : containersAwaitingAtPort){
         string portDest = container.getDestination();
-        if (findPortIndex(this->shipRoute, portDest, currPortIndex) == NOT_IN_ROUTE)
+        if (findPortIndex(shipRoute, portDest, currPortIndex) == NOT_IN_ROUTE)
             instructions.emplace_back('R', container.getId(), NOT_IN_ROUTE, NOT_IN_ROUTE, NOT_IN_ROUTE, -1, -1, -1);
     }
+
     vector<Container> sortedContainersAwaitingAtPort;
-    orderContainersByDest(containersAwaitingAtPort, sortedContainersAwaitingAtPort, shipRoute, currPortIndex); //More efficient, for algorithm B
-    int errors = 0;
+    int emptySlots = freeSlotsInShip(shipPlan);
+    orderContainersByDest(containersAwaitingAtPort, sortedContainersAwaitingAtPort, shipRoute, currPortIndex, emptySlots);
+
     for (auto& container : sortedContainersAwaitingAtPort){
+        // reject containers which were already rejected during parsing cargo data file
         if (container.isRejected()){
             instructions.emplace_back('R', container.getId(), NOT_IN_ROUTE, NOT_IN_ROUTE, NOT_IN_ROUTE, -1, -1, -1);
             continue;
         }
-        errors |= loadToShip(container, instructions, currPortIndex);
+        loadToShip(container, instructions, currPortIndex);
     }
 }
 
-int AlgorithmsBaseClass::loadToShip(Container& container, vector<INSTRUCTION>& instructions, int currPortIndex){
+void AlgorithmsBaseClass::loadToShip(Container& container, vector<INSTRUCTION>& instructions, int currPortIndex){
     string portDest = container.getDestination();
     int portDestIndex = findPortIndex(shipRoute, portDest, currPortIndex);
     if (portDestIndex == NOT_IN_ROUTE) {
         instructions.emplace_back('R', container.getId(), NOT_IN_ROUTE, NOT_IN_ROUTE, NOT_IN_ROUTE, -1, -1, -1);
-        return 0;
+        return;
     }
 
     // locate containers on ship
@@ -70,7 +75,8 @@ int AlgorithmsBaseClass::loadToShip(Container& container, vector<INSTRUCTION>& i
             for (int floor = 0; floor < shipPlan.getFloorsNum(); floor++){
                 if(shipPlan.getContainers()[x][y][floor] == nullptr &&
                    calculator.tryOperation('L', container.getWeight(), x, y) == WeightBalanceCalculator::APPROVED){
-                    if (floor != 0 && !shipPlan.getContainers()[x][y][floor-1]->isFutile() && findPortIndex(shipRoute, shipPlan.getContainers()[x][y][floor-1]->getDestination(), currPortIndex) > maxPortIndex){
+                    if (floor != 0 && !shipPlan.getContainers()[x][y][floor-1]->isFutile() &&
+                    findPortIndex(shipRoute, shipPlan.getContainers()[x][y][floor-1]->getDestination(), currPortIndex) > maxPortIndex){
                         idealSpotX = x;
                         idealSpotY = y;
                         idealSpotF = floor;
@@ -92,7 +98,8 @@ int AlgorithmsBaseClass::loadToShip(Container& container, vector<INSTRUCTION>& i
 
     if (idealSpotX == -1 && defaultX == -1){
         instructions.emplace_back('R', container.getId(), -1, -1, -1, -1, -1, -1); //No spot on ship
-        return (1 << 18);
+        errors |= (1 << 18);
+        return;
     }
     if ((idealSpotX == -1 && defaultX != -1) || (isContainerBelowBefore && defaultX != -1)){
         idealSpotX = defaultX;
@@ -104,7 +111,6 @@ int AlgorithmsBaseClass::loadToShip(Container& container, vector<INSTRUCTION>& i
     shipPlan.setContainers(idealSpotX, idealSpotY, idealSpotF, container);
 
     (const_cast<Port&>(shipRoute.getPortsList()[findPortIndex(shipRoute, portDest, currPortIndex)])).addContainerToUnloadToPort(container);
-    return 0;
 }
 
 void AlgorithmsBaseClass::getUnloadingInstructions(vector<INSTRUCTION>& instructions, int currPortIndex) {

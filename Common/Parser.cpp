@@ -64,11 +64,12 @@ int isCommentOrWS (const string& line){
 // ------------------------ validations -----------------------------------//
 
 bool isShipPlanLineValid (const string& line){
-    const std::regex regex("\\s*[0-9]\\s*[,]\\s*[0-9]\\s*[,]\\s*[0-9]\\s*");
+    //const std::regex regex("\\s*[0-9]\\s*[,]\\s*[0-9]\\s*[,]\\s*[0-9]\\s*"); // TODO: delete
+    const std::regex regex("\\s*(([0-9])|([1-9][0-9]*))\\s*[,]\\s*(([0-9])|([1-9][0-9]*))\\s*[,]\\s*(([0-9])|([1-9][0-9]*))\\s*");
     return std::regex_match(line, regex);
 }
 
-int checkIfValidPortId(string port){
+int checkIfValidPortId(const string& port){
     //has to be in model of: XXXXX - size 5
     const std::regex regex("\\s*[a-zA-z]{5}\\s*");
     if (!(std::regex_match(port, regex)))
@@ -132,14 +133,59 @@ int findCurrPortIndex(ShipRoute& shipRoute, const string& portSymbol, int visitN
     return currPortIndex;
 }
 
-void orderContainersByDest(vector<Container>& containersAwaitingAtPort,
-                           vector<Container>& sortedContainersAwaitingAtPort, ShipRoute& shipRoute, int currPortIndex){
-    for (size_t i = currPortIndex + 1; i < shipRoute.getPortsList().size(); i++){
-        for (auto& container : containersAwaitingAtPort){
+int freeSlotsInShip(ShipPlan& shipPlan) {
+    int counter = 0;
+    for (int x = 0; x < shipPlan.getPivotXDimension(); x++)
+        for (int y = 0; y < shipPlan.getPivotYDimension(); y++)
+            for (int floor = 0; floor < shipPlan.getFloorsNum(); floor++)
+                if (shipPlan.getContainers()[x][y][floor] == nullptr)
+                    counter++;
+    return counter;
+}
+
+void orderContainersByDest(vector<Container>& containersAwaitingAtPort, vector<Container>& sortedContainersAwaitingAtPort,
+                           ShipRoute& shipRoute, int currPortIndex, int emptySlots){
+    //sorting from the last port to closest to put the closer port's containers on the top
+    vector<Container> vecToSort;
+    vector<Container> containersToRejectBecauseNoSpace;
+
+    if ((int)containersAwaitingAtPort.size() > emptySlots){ //sort ascending ports
+        vector<Container> tmp;
+        for (size_t i = currPortIndex + 1 ; i < shipRoute.getPortsList().size() ; i++){
+            for (auto& container : containersAwaitingAtPort){
+                string destPort = container.getDestination();
+                if (findPortIndex(shipRoute, destPort, (int)currPortIndex) == (int)i)
+                    tmp.emplace_back(container);
+            }
+        }
+        vector<Container> tmp2;
+        for (int i = 0; i < (int) tmp.size(); ++i){
+            if(tmp[i].isRejected()){
+                tmp2.emplace_back();
+                tmp.erase(tmp.begin() + i);
+            }
+        }
+
+        for (auto& container : tmp2)
+            tmp.emplace_back(container);
+
+        vecToSort = vector<Container>(tmp.begin(), tmp.begin() + emptySlots); //take just the number of first ports with slots as the instruction says
+        containersToRejectBecauseNoSpace = vector<Container>(tmp.begin() + emptySlots, tmp.end()); //take just the number of first ports with slots as the instruction says
+    }
+    else
+        vecToSort = containersAwaitingAtPort; //if there are slots in the ship for all containers
+
+    for (int i = (int)shipRoute.getPortsList().size() - 1; i > currPortIndex; i--){ //sort descending by port
+        for (auto& container : vecToSort){
             string destPort = container.getDestination();
             if (findPortIndex(shipRoute, destPort, (int)currPortIndex) == (int)i)
                 sortedContainersAwaitingAtPort.emplace_back(container);
         }
+    }
+
+    if (!containersToRejectBecauseNoSpace.empty()){
+        for (auto& container : containersToRejectBecauseNoSpace)
+            sortedContainersAwaitingAtPort.emplace_back(container);
     }
 }
 
@@ -293,6 +339,13 @@ int readContainersAwaitingAtPort (const string& inputFileName, bool isFinalPort,
             if(isCommentOrWS(line))
                 continue;
 
+            if(temp.size() != 3){
+                errors |= (1 << 12);
+                errors |= (1 << 13);
+                errors |= (1 << 14);
+                continue;
+            }
+
             if (isFinalPort) {
                 errors |= (1 << 17);
                 return errors;
@@ -348,7 +401,7 @@ void writeInstructionsToFile(vector<tuple<char, string, int, int, int, int, int,
     ofstream instructionsForCargoFile(output_full_path_and_file_name);
     for (INSTRUCTION instruction : instructions){
         instructionsForCargoFile << get<0>(instruction) << ", " << get<1>(instruction) << ", " <<
-                get<2>(instruction) << ", " << get<3>(instruction) << ", "<< get<4>(instruction);
+                                 get<2>(instruction) << ", " << get<3>(instruction) << ", "<< get<4>(instruction);
 
         if (get<0>(instruction) == 'M')
             instructionsForCargoFile << ", " << get<5>(instruction) << ", " << get<6>(instruction) << ", "<< get<7>(instruction);

@@ -93,9 +93,10 @@ vector<fs::path> getPaths (int argc, char** argv, string& travelPath, string& al
     return getAlgorithmsPaths(algorithmPath);
 }
 
-int checkValidTravelPath(const string& travelPath){
+int checkValidTravelPath(const string& travelPath, const string& output){
     if(travelPath.empty()){
         cout << "Fatal Error: missing -travel_path argument. Exiting..." << endl;
+        makeFatalError(output);
         return ERROR;
     }
     return VALID;
@@ -118,8 +119,8 @@ ofstream initSimulationResults(const string& output, vector<Travel>& travels, ve
             if(checkIfValidTravel(outputMat, travelInd))
                 simulationResults << travels[travelInd].getName() +",";
 
-        simulationResults << "SUM,";
-        simulationResults << "NumErrors\n";
+        simulationResults << "Sum,";
+        simulationResults << "Num Errors\n";
     }
     return simulationResults;
 }
@@ -173,57 +174,48 @@ void updateOutputVector(vector<vector<int>>& outputMat, vector<tuple<string,vect
     }
 }
 
-void runOnlyMain(vector<tuple<pair<string,function<unique_ptr<AbstractAlgorithm>()>>, Travel, pair<int,int>>> travelAlgVec, vector<vector<int>> outputMat){
-    std::unordered_map<int,tuple<int,ShipPlan,ShipRoute>> shipPlanAndRouteMap;
-    for(int task_index = 0; task_index < (int) travelAlgVec.size(); task_index++){
-        auto& algorithm = get<0>(travelAlgVec[task_index]);
-        auto& travel = get<1>(travelAlgVec[task_index]);
-        unique_ptr<AbstractAlgorithm> alg = algorithm.second();
-        Simulator simulator{};
-        simulator.setErrorsFileName(travel.getOutputPath() + SEPARATOR + "errors" + SEPARATOR +
-                                    algorithm.first + "_" + to_string(travel.getIndex()) + ".errors");
+void runOnlyMain(vector<Travel>& travelsVec, unordered_map<string,function<unique_ptr<AbstractAlgorithm>()>>& algorithmMap, vector<vector<int>>& outputMat){
+    int algInd = 0;
+    for(auto& algorithm : algorithmMap){
+        int travelInd = 0;
+        for(Travel& travel : travelsVec){
 
-        // -------------------------- get input for simulator -------------------------- //
+            unique_ptr<AbstractAlgorithm> alg = algorithm.second();
+            Simulator simulator{};
+            simulator.setErrorsFileName(travel.getOutputPath() + SEPARATOR + "errors" + SEPARATOR +
+                                        algorithm.first + "_" + travel.getName() + ".errors");
 
-        int algInd = get<2>(travelAlgVec[task_index]).first;
-        int travelInd = get<2>(travelAlgVec[task_index]).second;
-        int travelErrors = 0;
+            int travelErrors = simulator.getInput(travel.getShipPlanPath().string(), travel.getShipRoutePath().string());
+            if (simulator.cantRunTravel(travelErrors, travel.getOutputPath(), outputMat, algInd, travelInd)){
+                travelInd++;
+                continue;
+            }
 
-        // didn't read data for this travel -> read shipPlan & shipRoute
-        if(shipPlanAndRouteMap.find(travelInd) == shipPlanAndRouteMap.end()){
-            travelErrors |= Parser::readShipPlan(get<1>(shipPlanAndRouteMap[travelInd]), travel.getShipPlanPath().string());
-            travelErrors |= Parser::readShipRoute(get<2>(shipPlanAndRouteMap[travelInd]), travel.getShipRoutePath().string());
-            get<0>(shipPlanAndRouteMap[travelInd]) = travelErrors;
+            WeightBalanceCalculator _calculator;
+            alg->setWeightBalanceCalculator(_calculator);
+            simulator.setWeightBalanceCalculator(_calculator);
+
+            int errorsOfAlgorithm = 0;
+            errorsOfAlgorithm |= alg->readShipPlan(travel.getShipPlanPath().string());
+            errorsOfAlgorithm |= alg->readShipRoute(travel.getShipRoutePath().string());
+            if (simulator.cantRunTravel(travelErrors, travel.getOutputPath(), outputMat, algInd, travelInd)){
+                travelInd++;
+                continue;
+            }
+
+            string algorithmErrorString;
+            int algActionsCounter = 0;
+            errorsOfAlgorithm |= simulator.startTravel(alg.get(), algorithm.first, travel, algorithmErrorString, travel.getOutputPath(), algActionsCounter);
+
+            simulator.writeErrors(errorsOfAlgorithm, travel, outputMat, algInd, travelInd, algorithmErrorString);
+
+            // updating simulation.results' Mat
+            outputMat[algInd][travelInd] = algActionsCounter;
+            outputMat[algInd][outputMat[algInd].size() - SUM_AND_NUM_ERRORS] += algActionsCounter;
+
+            travelInd++;
         }
-
-        travelErrors = get<0>(shipPlanAndRouteMap[travelInd]);
-        if (simulator.cantRunTravel(travelErrors, travel.getOutputPath(), outputMat, algInd, travelInd)) return;
-
-        simulator.setShipPlan(get<1>(shipPlanAndRouteMap[travelInd]));
-        simulator.setShipRoute(get<2>(shipPlanAndRouteMap[travelInd]));
-
-        WeightBalanceCalculator _calculator;
-        alg->setWeightBalanceCalculator(_calculator);
-        simulator.setWeightBalanceCalculator(_calculator);
-
-        // -------------------------- get input for algorithm -------------------------- //
-
-        int errorsOfAlgorithm = 0;   // errorsOfAlgorithm != 0 iff we have errors in the given input / the algorithm made errors
-        errorsOfAlgorithm |= alg->readShipPlan(travel.getShipPlanPath().string());
-        errorsOfAlgorithm |= alg->readShipRoute(travel.getShipRoutePath().string());
-        if (simulator.cantRunTravel(travelErrors, travel.getOutputPath(), outputMat, algInd, travelInd)) return;
-
-        // -------------------------- run algorithm - travel pair -------------------------- //
-
-        string algorithmErrorString;
-        int algActionsCounter = 0;
-        errorsOfAlgorithm |= simulator.startTravel(alg.get(), algorithm.first, travel, algorithmErrorString, travel.getOutputPath(), algActionsCounter);
-
-        simulator.writeErrors(errorsOfAlgorithm, travel, outputMat, algInd, travelInd, algorithmErrorString);
-
-        // updating simulation.results' Mat
-        outputMat[algInd][travelInd] = algActionsCounter;
-        outputMat[algInd][outputMat[algInd].size() - 2] += algActionsCounter;
+        algInd++;
     }
 }
 
@@ -234,7 +226,7 @@ int main(int argc, char** argv) {
     string travelPath, algorithmPath, output;
     int numThreads = 1;
     vector<fs::path> algorithmPaths = getPaths(argc, argv, travelPath, algorithmPath, output, numThreads);
-    if(checkValidTravelPath(travelPath) == ERROR) return EXIT_FAILURE;
+    if(checkValidTravelPath(travelPath, output) == ERROR) return EXIT_FAILURE;
     Errors::populateErrorsMap();
 
     vector<Travel> travelsVec;
@@ -263,7 +255,7 @@ int main(int argc, char** argv) {
                 NumThreads{numThreads}, outputMat };
         threadPool.start();
         threadPool.wait_till_finish();
-    } else runOnlyMain(travelAlgVec, outputMat);
+    } else runOnlyMain(travelsVec, algorithmMap, outputMat);
 
     // ----------------------- creating simulations results file ----------------------- //
 

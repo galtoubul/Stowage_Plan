@@ -31,8 +31,11 @@ int findCurrPortIndex(ShipRoute& shipRoute, const string& portSymbol, int visitN
 // Update instructions to contain the instructions written in outputFileName
 void getInstructionsForPort(const string& outputFileName, vector<INSTRUCTION>& instructions);
 
+// returns the number of free spots on the ship
+int freeSlotsInShip (ShipPlan& shipPlan);
+
 void orderContainersByDest(vector<Container>& containersAwaitingAtPort, vector<Container>& sortedContainersAwaitingAtPort,
-                           ShipRoute& shipRoute, int currPortIndex);
+                           ShipRoute& shipRoute, int currPortIndex, int emptySlots);
 
 // ------------------------ main functions -----------------------------------//
 

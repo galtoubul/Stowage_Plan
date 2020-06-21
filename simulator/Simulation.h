@@ -55,6 +55,8 @@ public:
     // validations:
     int checkAndCountAlgorithmActions(vector<Container>& containersAwaitingAtPort, const string& outputFileName,
                                       const string& currPortSymbol, string& algorithmErrorString, int currPortIndex, int& algActionsCounter);
+    int checkRejectInstruction(vector<Container>& containersAwaitingAtPort, string& containerId, Container *container,
+                               string& algorithmErrorString, int x1, int y1, int floor1);
     int checkLoadInstruction(int x, int y, int floor, Container& container, string& algorithmErrorString);
     int checkUnloadInstruction(int x, int y, int floor, Container& container, string& algorithmErrorString);
     int checkMoveInstruction(int x1, int y1, int floor1, int x2, int y2, int floor2, Container& container, string& algorithmErrorString);
@@ -64,10 +66,10 @@ public:
     void makeAlgorithmError(ofstream& errorsFile, const string& algorithmErrorString, vector<vector<int>>& outputMat, int algInd, int travelInd);
     bool cantRunTravel(int travelErrors, const string& output, vector<vector<int>>& outputMat, int algInd, int travelInd);
     void writeErrors(int errorsOfAlgorithm, Travel& travel, vector<vector<int>>& outputMat, int algInd, int travelInd, const string& algorithmErrorString);
-
-    // returns the number of free spots on the ship
-    int freeSlotsInShip ();
 };
+
+void makeFatalError(const string& output);
+void makeMissingTravelsFilesError(const string& output, const string& travelName);
 
 // Returns the path for a file ending with lookFor at entry directory
 fs::path getPath(fs::directory_entry entry, const string& lookFor);

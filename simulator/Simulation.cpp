@@ -15,6 +15,7 @@ using std::endl;
 #define VALID 1
 #define CANNOT_RUN_TRAVEL ((1 << 3) | (1 <<4) | (1 << 7) | (1 << 8))
 #define SEPARATOR string(1, fs::path::preferred_separator)
+#define NOT_FOUND -1
 
 // -------------------------- utilities ----------------------------- //
 
@@ -26,16 +27,6 @@ inline void clearData(ShipPlan& shipPlan, ShipRoute& shipRoute){
 inline std::string& ltrim(std::string& s, const char* t = " \t\n\r\f\v"){
     s.erase(0, s.find_first_not_of(t));
     return s;
-}
-
-int Simulator::freeSlotsInShip() {
-    int counter = 0;
-    for (int x = 0; x < this->shipPlan.getPivotXDimension(); x++)
-        for (int y = 0; y < this->shipPlan.getPivotYDimension(); y++)
-            for (int floor = 0; floor < this->shipPlan.getFloorsNum(); floor++)
-                if (this->shipPlan.getContainers()[x][y][floor] == nullptr)
-                    counter++;
-    return counter;
 }
 
 bool compareAlgoTuples(tuple<string,vector<int>,int,int> x, tuple<string,vector<int>,int,int> y){
@@ -95,10 +86,12 @@ vector<Travel>& initTravelsVec(vector<Travel>& travelsVec, const string& travels
         if(entry.is_directory()){
             fs::path shipPlanPath = getPath(entry, ".ship_plan");
             fs::path shipRoutePath = getPath(entry, ".route");
-            if(shipPlanPath.string().empty() || shipRoutePath.string().empty())
-                continue;
             auto found = entry.path().string().find_last_of(SEPARATOR);
             string name = entry.path().string().substr(found + 1);
+            if(shipPlanPath.string().empty() || shipRoutePath.string().empty()){
+                makeMissingTravelsFilesError(output, name);
+                continue;
+            }
             travelsVec.emplace_back(index, shipPlanPath, shipRoutePath, entry, output, name);
             index++;
         }
@@ -116,7 +109,6 @@ int Simulator::checkAndCountAlgorithmActions(vector<Container>& containersAwaiti
         return ERROR;
     }
     getInstructionsForPort(outputFileName, instructions);
-
     for (INSTRUCTION& instruction : instructions) {
         char instructionType;
         string containerIdBeforeTrim;
@@ -124,9 +116,11 @@ int Simulator::checkAndCountAlgorithmActions(vector<Container>& containersAwaiti
         std::tie(instructionType, containerIdBeforeTrim, floor1, x1, y1, floor2, x2, y2) = instruction;
         string containerId = ltrim(containerIdBeforeTrim);
 
-        Container* container = nullptr;
-        if (instructionType == 'R')
-            continue;
+        Container *container = nullptr;
+        if (instructionType == 'R') {
+            if(checkRejectInstruction(containersAwaitingAtPort, containerId, container, algorithmErrorString, x1, y1, floor1) == ERROR)
+                return ERROR;
+        }
         else if (instructionType == 'L'){
             algActionsCounter += 5;
 
@@ -175,7 +169,7 @@ int Simulator::checkAndCountAlgorithmActions(vector<Container>& containersAwaiti
     // look for containers that were unloaded at the current port and shouldn't
     for (auto& _container : containersAwaitingAtPort) {
         if (findPortIndex(shipRoute, currPortSymbol, currPortIndex) != NOT_IN_ROUTE &&
-            _container.getDestination() != currPortSymbol && freeSlotsInShip() > 0){
+            _container.getDestination() != currPortSymbol && freeSlotsInShip(shipPlan) > 0){
             algorithmErrorString = Errors::buildContainerForgottenError(currPortSymbol);
             return ERROR;
         }
@@ -193,6 +187,36 @@ int Simulator::checkAndCountAlgorithmActions(vector<Container>& containersAwaiti
             }
         }
     }
+    return VALID;
+}
+
+int Simulator::checkRejectInstruction(vector<Container>& containersAwaitingAtPort, string& containerId, Container *container,
+                                      string& algorithmErrorString, int x1, int y1, int floor1){
+    int freeSlots = freeSlotsInShip(shipPlan);
+    int containersNum = containersAwaitingAtPort.size();
+    int ind = 0, lastFound = NOT_FOUND;
+
+    // finding the rejected container at containersAwaiting at port
+    for (auto &_container : containersAwaitingAtPort) {
+        if (_container.getId() == ltrim(containerId) && ind != lastFound) {
+            lastFound = ind;
+            container = &_container;
+            // simulator rejected this container -> valid operation
+            if (container->isRejected()){
+                containersAwaitingAtPort.erase(find(containersAwaitingAtPort.begin(), containersAwaitingAtPort.end(), *container));
+                return VALID;
+            }
+        }
+        ind ++;
+    }
+
+    // there is empty space on ship and yet the container was rejected -> Error
+    if (containersNum <= freeSlots){
+        algorithmErrorString = Errors::buildNotLegalOperationError("Rejecting", containerId, floor1, x1, y1, "this container wasn't supposed to be rejected");
+        return ERROR;
+    }
+
+    containersAwaitingAtPort.erase(find(containersAwaitingAtPort.begin(), containersAwaitingAtPort.end(), *container));
     return VALID;
 }
 
@@ -263,17 +287,46 @@ int Simulator::checkMoveInstruction(int x1, int y1, int floor1, int x2, int y2, 
 
 // -------------------------- errors --------------------------- //
 
-//void Simulator::makeTravelError(int travelErrors, const string& output, vector<vector<int>>& outputMat, int algInd, int travelInd){
+void makeFatalError(const string& output){
+    if(!fs::exists(output + SEPARATOR + "errors")){
+        std::error_code ec;
+        fs::create_directory(output + SEPARATOR + "errors", ec);
+    }
+    ofstream errorsFile(output + SEPARATOR + "errors" + SEPARATOR + "fatal_error");
+    if(errorsFile.is_open()) {
+        errorsFile << "Fatal Error: missing -travel_path argument. Exiting...";
+        errorsFile.close();
+    }
+}
+
+void makeMissingTravelsFilesError(const string& output, const string& travelName){
+    if(!fs::exists(output + SEPARATOR + "errors")){
+        std::error_code ec;
+        fs::create_directory(output + SEPARATOR + "errors", ec);
+    }
+    ofstream errorsFile(output + SEPARATOR + "errors" + SEPARATOR + travelName + ".travels_files");
+    if(errorsFile.is_open()) {
+        errorsFile << "Travel Error: missing ship plan or ship route file.";
+        errorsFile.close();
+    }
+}
+
+
 void Simulator::makeTravelError(int travelErrors, const string& output, vector<vector<int>>& outputMat, int algInd, int travelInd){
     std::error_code ec;
-    fs::create_directory(output + SEPARATOR + "errors", ec);
-    ofstream errorsFile(errorsFileName);
-    for (int i = 1; i <= (1 << 18); i *= 2){
-        if ((i & travelErrors) > 0)
-            errorsFile << Errors::errorsMap[i] << "\n";
+    if(!fs::exists(output + SEPARATOR + "errors")){
+        std::error_code ec;
+        fs::create_directory(output + SEPARATOR + "errors", ec);
     }
-    errorsFile << "Travel errors occurred. Skipping travel.";
-    errorsFile.close();
+    ofstream errorsFile(errorsFileName);
+    if(errorsFile.is_open()) {
+        for (int i = 1; i <= (1 << 18); i *= 2) {
+            if ((i & travelErrors) > 0)
+                errorsFile << Errors::errorsMap[i] << "\n";
+        }
+        errorsFile << "Travel errors occurred. Skipping travel.";
+        errorsFile.close();
+    }
     clearData(shipPlan, shipRoute);
 
     outputMat[algInd][travelInd] = NON_VALID_TRAVEL;

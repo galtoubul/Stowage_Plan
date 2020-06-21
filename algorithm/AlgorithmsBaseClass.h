@@ -46,8 +46,8 @@ public:
 
     void getUnloadingInstructions(vector<INSTRUCTION>& instructions, int currPortIndex);
     void unloadToPort(Container& container, vector<INSTRUCTION>& instructions, Port& port);
-    int getLoadingInstructions(vector<INSTRUCTION>& instructions, vector<Container>& containersAwaitingAtPort, int currPortIndex);
-    int loadToShip(Container& container, vector<INSTRUCTION>& instructions, int currPortIndex);
+    void getLoadingInstructions(vector<INSTRUCTION>& instructions, vector<Container>& containersAwaitingAtPort, int currPortIndex);
+    void loadToShip(Container& container, vector<INSTRUCTION>& instructions, int currPortIndex);
 
     // This function is virtual because it makes the difference between the 2 algorithms: the way they chose an empty spot
     virtual tuple<int,int,int> findEmptySpot(int x, int y) = 0;
